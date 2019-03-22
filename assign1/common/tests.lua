@@ -16,13 +16,19 @@ function table.equals(t1, t2)
 end
 
 function serialize_tests()
+	local i = 0 
 	function check(v)
-		result = rpc.deserialize(rpc.serialize(v))
+		r = rpc.serialize(v)
+		--print(r)
+		result = rpc.deserialize(r)
+		--print(result)
 		if type(v) == "table" then
 			assert(table.equals(v, result))
 		else
 			assert(v == result)
 		end
+		i = i + 1
+		print("成功数"..i)
 	end
 
 	check(0)
@@ -35,6 +41,12 @@ function serialize_tests()
 	check({a = ","})
 	check({a = "=", b = "#"})
 	check({a = {b = 1}, c = 2})
+	check({a = 1, b = {}})
+	check({1, 2, false})
+	check({foo = "bar", 2})
+	check({a = {b = {c = 2, t = 0.8 , x = false,}}, c = {a = 5, "as"}})
+	check({a = {b = {}}})
+	check({result = "return 2#2"})
 end
 
 function rpc_tests()
@@ -66,6 +78,7 @@ function rpc_tests()
 	assert(2 == MyClassRPC.incr(inst))
 
 	MyClassRPC.exit(inst)
+	print("test_1 pass")
 end
 
 function rpc_tests_2()
@@ -98,6 +111,7 @@ function rpc_tests_2()
 	assert(5 == MyClassRPC.incr(inst, 3))
 
 	MyClassRPC.exit(inst)
+	print("test_2 pass")
 end
 
 serialize_tests()
