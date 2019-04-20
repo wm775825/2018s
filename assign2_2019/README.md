@@ -1,4 +1,4 @@
-# PA2: Implement Lists.v
+# PA2: Coq Logic Verification
 
 This assignment is to get familiar with some basic Coq verification techniques.
 
