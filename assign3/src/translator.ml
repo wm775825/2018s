@@ -1,11 +1,11 @@
 open Core
 open Ast
 
-exception Unimplemented
+(* exception Unimplemented *)
 
 let rec translate_type (t : Lang.Type.t) : IR.Type.t =
   match t with
-  | Lang.Type.Int -> IR.Type.Int
+  | Lang.Type.Int ->  IR.Type.Int
   | Lang.Type.Var v -> IR.Type.Var v
   | Lang.Type.Fn (l, r) -> IR.Type.Fn (translate_type l, translate_type r)
   | Lang.Type.Product (l, r) -> IR.Type.Product (translate_type l, translate_type r)
@@ -46,7 +46,19 @@ let rec translate_term (t : Lang.Term.t) : IR.Term.t =
 
   | Lang.Term.Let (p, arg, body) ->
     (* Delete the line below and implement the Let case. *)
-    raise Unimplemented
+    (
+      match p with
+      | Lang.Pattern.Wildcard ->
+          translate_term body
+      | Lang.Pattern.Var (x, tau) -> 
+          IR.Term.App (IR.Term.Lam (x, translate_type tau, translate_term body), translate_term arg)
+      | Lang.Pattern.Alias (rho, x, tau) ->
+          IR.Term.App (IR.Term.Lam (x, translate_type tau, translate_term (Lang.Term.Let (rho, arg, body))), translate_term arg)
+      | Lang.Pattern.Tuple (rho1, rho2) ->
+          translate_term (Lang.Term.Let (rho1, Lang.Term.Project (arg, Left), Lang.Term.Let(rho2, Lang.Term.Project (arg, Right), body)))
+      | Lang.Pattern.TUnpack (v1, v2) -> 
+          IR.Term.TUnpack (v1, v2, translate_term arg, translate_term body)
+    )
 
 let translate t = translate_term t
 

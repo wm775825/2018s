@@ -7,7 +7,7 @@ let parse input =
   try (Ok (Parser.main Lexer.token filebuf)) with
   | Lexer.Error msg -> Error msg
   | Parser.Error -> Error (
-    Printf.sprintf "Parse error: %d" (Lexing.lexeme_start filebuf))
+    Printf.sprintf "Parse error: %d, error token: %s" (Lexing.lexeme_start filebuf) (Lexing.lexeme filebuf))
 
 let run filename =
   let input = In_channel.read_all filename in

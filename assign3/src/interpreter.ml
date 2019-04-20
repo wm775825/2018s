@@ -2,7 +2,7 @@ open Core
 open Ast.IR
 
 exception RuntimeError of string
-exception Unimplemented
+(* exception Unimplemented *)
 
 type outcome =
   | Step of Term.t
@@ -25,17 +25,89 @@ let rec trystep (t : Term.t) : outcome =
 
   | Term.TUnpack (_, x, t1, t2) -> Step (Term.substitute x t1 t2)
 
-  | Term.App (fn, arg) -> raise Unimplemented
+  | Term.App (fn, arg) -> (
+      match trystep fn with
+      | Step t1' -> Step (Term.App (t1', arg))
+      | Val -> (
+          match trystep arg with
+          | Step t2' -> Step (Term.App (fn, t2'))
+          | Val -> (
+              match fn with
+              | Term.Lam (x, _, t) -> Step (Term.substitute x arg t)
+              | _ -> raise (RuntimeError "RuntimeError 0")
+            )
+          | Err str -> raise (RuntimeError str)
+        )
+      | Err str -> raise (RuntimeError str)
+    )
 
-  | Term.Binop (b, t1, t2) -> raise Unimplemented
+  | Term.Binop (b, t1, t2) -> (
+      match trystep t1 with
+      | Step t1' -> Step (Term.Binop (b, t1', t2))
+      | Val -> (
+          match trystep t2 with
+          | Step t2' -> Step (Term.Binop (b, t1, t2'))
+          | Val -> (
+              match (b, t1, t2) with
+              | (Div, _, Term.Int 0) -> Err "divided by zero!"
+              | (Add, (Term.Int n1), (Term.Int n2)) -> Step (Term.Int (n1 + n2))
+              | (Sub, (Term.Int n1), (Term.Int n2)) -> Step (Term.Int (n1 - n2))
+              | (Mul, (Term.Int n1), (Term.Int n2)) -> Step (Term.Int (n1 * n2))
+              | (Div, (Term.Int n1), (Term.Int n2)) -> Step (Term.Int (n1 / n2))
+              | _ -> raise (RuntimeError "RuntimeError 1")
+           )
+          | Err str -> raise (RuntimeError str)
+        )
+      | Err str -> raise (RuntimeError str)
+    )
 
-  | Term.Tuple (t1, t2) -> raise Unimplemented
+  | Term.Tuple (t1, t2) -> (
+      match trystep t1 with
+      | Step t1' -> Step (Term.Tuple(t1', t2))
+      | Val -> (
+          match trystep t2 with
+          | Step t2' -> Step (Term.Tuple(t1, t2'))
+          | Val -> Val
+          | Err str -> raise (RuntimeError str)
+        )
+      | Err str -> raise (RuntimeError str)
+    )
 
-  | Term.Project (t, dir) -> raise Unimplemented
+  | Term.Project (t, dir) -> (
+      match trystep t with
+      | Step t' -> Step(Term.Project (t', dir))
+      | Val -> (
+          match t with
+          | Term.Tuple (t1, t2) -> (
+              match dir with
+              | Left -> Step t1
+              | Right -> Step t2
+            )
+          | _ -> raise (RuntimeError "RuntimeError 2")
+        )
+      | Err str -> raise (RuntimeError str)
+    )
+  | Term.Inject (t, dir, tau) -> (
+      match trystep t with
+      | Step t' -> Step (Term.Inject (t', dir, tau))
+      | Val -> Val
+      | Err str -> raise (RuntimeError str)
+    )
 
-  | Term.Inject (t, dir, tau) -> raise Unimplemented
-
-  | Term.Case (t, (x1, t1), (x2, t2)) -> raise Unimplemented
+  | Term.Case (t, (x1, t1), (x2, t2)) -> (
+      match trystep t with
+      | Step t' -> Step (Term.Case (t', (x1, t1), (x2, t2)))
+      | Val -> (
+          match t with
+          | Term.Inject (t', dir, _) -> (
+              match dir with
+              | Left -> Step (Term.substitute x1 t' t1)
+              | Right -> Step (Term.substitute x2 t' t2)
+            )
+          | _ -> raise (RuntimeError "RuntimeError 3")
+        )
+      | Err str -> raise (RuntimeError str)
+    )
 
 let rec eval e =
   match trystep e with
@@ -78,4 +150,4 @@ let inline_tests () =
   let t3 = Term.Binop(Ast.Div, Term.Int 3, Term.Int 0) in
   assert (match trystep t3 with Err _ -> true | _ -> false)
 
-(* let () = inline_tests () *)
+let () = inline_tests ()

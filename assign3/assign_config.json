@@ -15,6 +15,10 @@
             "command": "tests/exists2.lam2"
         },
         {
+            "name": "Exists3",
+            "command": "tests/exists3.lam2"
+        },
+        {
             "name": "Exists Fail1",
             "command": "tests/exists_fail.lam2"
         },

@@ -2,7 +2,7 @@ open Core
 open Ast.IR
 
 exception TypeError of string
-exception Unimplemented
+(* exception Unimplemented *)
 
 (* Checks that a type is legal. *)
 let rec typecheck_type (tenv : String.Set.t) (tau : Type.t) : Type.t =
@@ -36,10 +36,11 @@ let rec typecheck_term (tenv : String.Set.t) (env : Type.t String.Map.t) (t : Te
       | None -> raise (TypeError "Does not typecheck 01")
     )
 
-  | Term.Lam (x, arg_tau, body) -> (
-      let arg_tau_type = typecheck_type tenv arg_tau in
-      let new_map = String.Map.add env ~key:x ~data:arg_tau_type in
-      Type.Fn(arg_tau_type, typecheck_term tenv new_map body)
+  | Term.Lam (x, tau, t) -> (
+      let tau1 = typecheck_type tenv tau in
+      let new_map = String.Map.add env ~key:x ~data:tau1 in
+      let tau2 = typecheck_term tenv new_map t in
+      Type.Fn(tau1, tau2)
     )
 
   | Term.App (fn, arg) -> (
@@ -53,23 +54,102 @@ let rec typecheck_term (tenv : String.Set.t) (env : Type.t String.Map.t) (t : Te
       | _ -> raise (TypeError "Does not typecheck 05")
     )
 
-  | Term.Binop (_, t1, t2) -> raise Unimplemented
+  | Term.Binop (_, t1, t2) -> (
+      let tau1 = typecheck_term tenv env t1 in
+      let tau2 = typecheck_term tenv env t2 in
+      match (Type.aequiv tau1 tau2) with
+      | true -> tau1
+      | false -> raise (TypeError "Binop: types of lhs and rhs different!")
+    )
 
-  | Term.Tuple (t1, t2) -> raise Unimplemented
+  | Term.Tuple (t1, t2) -> (
+      let tau1 = typecheck_term tenv env t1 in
+      let tau2 = typecheck_term tenv env t2 in
+      Type.Product (tau1, tau2)
+    )
 
-  | Term.Project (t, dir) -> raise Unimplemented
+  | Term.Project (t, dir) -> (
+      let tau = typecheck_term tenv env t in
+      match tau with
+      | Type.Product (l, r) -> (
+          match dir with
+          | Left -> l
+          | Right -> r
+       )
+      | _ -> raise (TypeError "Project: not a product type!")
+    )
 
-  | Term.Inject (arg, dir, sum_tau) -> raise Unimplemented
+  | Term.Inject (arg, dir, sum_tau) -> (
+      let tau = typecheck_term tenv env arg in
+      let _sum_tau = typecheck_type tenv sum_tau in
+      match _sum_tau with
+      | Type.Sum(tau1, tau2) -> (
+          match dir with
+          | Left -> (
+              match Type.aequiv tau tau1 with
+              | true -> _sum_tau
+              | false -> raise (TypeError "Inject: tau is different from tau1!")
+            )
+          | Right -> (
+              match Type.aequiv tau tau2 with
+              | true -> _sum_tau
+              | false -> raise (TypeError "Inject: tau is different from tau2!")
+              )
+        )
+      | _ -> raise (TypeError "Inject: not a sum type!")
+    )
 
-  | Term.Case (switch, (x1, t1), (x2, t2)) -> raise Unimplemented
+  | Term.Case (t, (x1, t1), (x2, t2)) -> (
+      let sum_tau = typecheck_term tenv env t in
+      match sum_tau with
+      | Type.Sum (tau_x1, tau_x2) -> (
+          let new_map = String.Map.add (String.Map.add env ~key:x1 ~data:tau_x1) ~key:x2 ~data:tau_x2 in
+          let tau_t1 = typecheck_term tenv new_map t1 in
+          let tau_t2 = typecheck_term tenv new_map t2 in
+          match Type.aequiv tau_t1 tau_t2 with
+          | true -> tau_t1
+          | false -> raise (TypeError "Case: different types for two cases!")
+        )
+      | _ -> raise (TypeError "Case: t is not a sum type!")
+    )
 
-  | Term.TLam (x, t) -> raise Unimplemented
+  | Term.TLam (x, t) -> (
+      let new_set = String.Set.add tenv x in
+      let tau = typecheck_term new_set env t in
+      Type.ForAll (x, tau)
+    )
 
-  | Term.TApp (t, arg_tau) -> raise Unimplemented
+  | Term.TApp (t, arg_tau) -> (
+      let tau = typecheck_term tenv env t in
+      let tau2 = typecheck_type tenv arg_tau in
+      match tau with
+      | Type.ForAll (x, tau1) -> (Type.substitute x tau2 tau1)
+      | _ -> raise (TypeError "TApp: t is not a forall type!") 
+    )
 
-  | Term.TPack (abstracted_tau, t, existential_type) -> raise Unimplemented
+  | Term.TPack (abstracted_tau, t, existential_type) -> (
+      let tau1 = typecheck_type tenv abstracted_tau in
+      let tau = typecheck_term tenv env t in
+      let x_tau2 = typecheck_type tenv existential_type in
+      match x_tau2 with
+      | Type.Exists (x, tau2) -> (
+          match (Type.aequiv tau (Type.substitute x tau1 tau2)) with
+          | true -> x_tau2
+          | false -> raise (TypeError "TPack: existential type and tau not match!")
+        )
+      | _ -> raise (TypeError "TPack: not a existential_type!")
+    )
 
-  | Term.TUnpack (xty, xterm, arg, body) -> raise Unimplemented
+  | Term.TUnpack (xty, xterm, arg, body) -> (
+      let tau_t1 = typecheck_term tenv env arg in
+      match tau_t1 with
+      | Type.Exists (_x, tau1) -> (
+          let new_set = String.Set.add tenv xty in
+          let new_map = String.Map.add env ~key:xterm ~data:tau1 in
+          typecheck_term new_set new_map body
+        )
+      | _ -> raise (TypeError "TUnpack: type of t1 is not a exists type!")
+    )
 
 let typecheck t =
   try Ok (typecheck_term String.Set.empty String.Map.empty t)
