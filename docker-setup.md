@@ -47,6 +47,8 @@ To download the image,
 docker pull dimo414/cs242
 ```
 
+It may be **SO SLOW** to pull this image that you can use `docker save` and `docker load` to copy from your classmates who make it luckily. [This page](https://stackoverflow.com/questions/23935141/how-to-copy-docker-images-from-one-host-to-another-without-using-a-repository) may help.
+
 ## Usage
 
 To run the image.
